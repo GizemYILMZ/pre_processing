@@ -12,7 +12,6 @@ vectorizer = sklearn.feature_extraction.text.CountVectorizer(min_df=1)
 
 stemmed_list = " "
 corpus = []
-
 def stem_word(word):
     global stemmed_list
     stemmer = TurkishStemmer()
