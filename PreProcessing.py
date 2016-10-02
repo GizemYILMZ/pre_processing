@@ -73,8 +73,8 @@ for i in range(len(filenames)):
     file_path = dirpath + "/" + filenames[i]
     print(file_path)
     create_corpus(file_path)
-    # fdist1 = FreqDist(word_list)
-    # print(fdist1.most_common(10))
+    fdist1 = FreqDist(word_list)
+    print(fdist1.most_common(10))
 
 target = open('target.txt', 'w')
 
