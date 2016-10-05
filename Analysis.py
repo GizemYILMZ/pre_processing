@@ -23,6 +23,12 @@ from sklearn import preprocessing
 #import pylab as pl
 from sklearn import svm
 
+class MyEval:
+    accuracy=0.0
+    AUC=0.0
+    F1=0.0
+    def __init__(self):
+        return
 # ------------Preprocessing Data-------------------
 
 def stemmerTrFps6(term):
@@ -52,36 +58,39 @@ def distinct(myList):
 #-------------End Of Preprocessing Data------------------
 
 
-# -------------- Classifiers-----------------------------
-
-def multinomial_nb(X_train, y_train):
-    classifier =MultinomialNB().fit(X_train, y_train)
-    return classifier
-
-def multinomial_nb_classifier(X_train, y_train,X_test,y_test):
-    classifier=multinomial_nb(X_train,y_train)
-    predictions = classifier.predict(X_test)  # Perform classification on an array of test vectors X.
-    evalReport = classification_report(y_test, predictions, target_names=classifier.classes_)  # distinct(classLabels))
-    print("Eval Report : ")
+def evaluate_testOnTrainingSet(dataset,classlabels,classifier):
+    X_train = dataset
+    y_train = classlabels
+    X_test = X_train
+    y_test = y_train
+    predictions = classifier.predict(X_test)
+    evalReport = classification_report(y_test, predictions, target_names=classifier.classes_)
     print(evalReport)
-    cm = confusion_matrix(y_test,predictions)  # Compute confusion matrix to evaluate the accuracy of a classification
-    print("Confusion matrix:")
-    print(cm)
-    print("Accuracy :")
-    accuracy = classifier.score(X_test, y_test)
-    print(accuracy)
     return
 
-def kfold_cross_validation(X_train, y_train,X_test,y_test):
-    print("--------10 fold croos validation with Multinominal NB------------")
-    k_fold = KFold(len(y_test), n_folds=10, shuffle=True, random_state=0)
-    classifier = multinomial_nb(X_train,y_train)
-    scores = cross_val_score(classifier, X_test, y_test, cv=k_fold, n_jobs=1)
+
+def evaluate_nFoldCV(dataset,classlabels,classifier,n):
+    X_train = dataset
+    y_train = classlabels
+    X_test = X_train
+    y_test = y_train
+    # k_fold = KFold(len(y_test), n_folds=n, shuffle=True, random_state=0)
+    scores = cross_val_score(classifier, X_test, y_test, cv=n, n_jobs=1)
     print(scores)
     print("Mean score: {0:.3f} (+/-{1:.3f})".format(scores.mean(), scores.std()))
     return
 
-# -------------- End of Classifiers-----------------------------
+
+def evaluate_trainTestSplit(dataset,classLabels,classifier,testPercantage):
+    X_train, X_test, y_train, y_test = cross_validation.train_test_split(dataset, classLabels, test_size=testPercantage,random_state=0)
+    predictions = classifier.predict(X_test)  # Perform classification on an array of test vectors X.
+    evalReport = classification_report(y_test, predictions, target_names=classifier.classes_)
+    cm = confusion_matrix(y_test, predictions)
+    print(evalReport)
+    print("Confusion matrix:")
+    accuracy = classifier.score(X_test, y_test)
+    print(accuracy)
+    return
 
 
 path = 'data/1150haber/'
@@ -96,43 +105,34 @@ for subdir, dirs, files in os.walk(path):
         classLabels.append(subdir[15:])
 
 
-# TfidfVectorizer : Convert a collection of raw documents to a matrix of TF-IDF features.
 tfidf = TfidfVectorizer(tokenizer=tokenize, preprocessor=preprocess, lowercase=True, stop_words='english')
-
-# fit_transform :  Learn vocabulary and idf, return term-document matrix.
-# docTermMatrix : Tf-idf-weighted document-term matrix. (X)
 docTermMatrix = tfidf.fit_transform((open(f,encoding='utf8').read() for f in fileNames))
 
 #print(docTermMatrix[1,:].todense())
 #print(type(docTermMatrix))
 #print(docTermMatrix.shape)
 #print(classLabels)
+dataset=docTermMatrix
+
+classifier =MultinomialNB().fit(dataset, classLabels)
 
 # test on training set
-X_train = docTermMatrix
-y_train = classLabels
-X_test = docTermMatrix
-y_test = classLabels
-
-# multinominal_nb
-multinomial_nb_classifier(X_train,y_train,X_test,y_test)
+evaluate_testOnTrainingSet(dataset,classLabels,classifier)
 
 # train-test split 60%-40% with multinominal_nb
+percentage=0.4
 print(" split 60%-40% with Multinominal NB")
-X_train, X_test, y_train, y_test = cross_validation.train_test_split(docTermMatrix, classLabels, test_size=0.4, random_state=0)
-multinomial_nb_classifier(X_train,y_train,X_test,y_test)
+evaluate_trainTestSplit(dataset,classLabels,classifier,percentage)
 
-# k_fold(10) cross validation  with multinominal_nb
-X_train = docTermMatrix
-y_train = classLabels
-X_test = docTermMatrix
-y_test = classLabels
-
-kfold_cross_validation(X_train,y_train,X_test,y_test)
+# nFold CV with multinominal_nb
+n=10
+print(" 10 fold CV with Multinominal NB")
+evaluate_nFoldCV(dataset,classLabels,classifier,n)
 
 
-clf = svm.SVC(kernel='linear',C=1.0,decision_function_shape=None)
-clf.fit(X_train, y_train)
-prediction=clf.predict(X_test)
-accuracy=clf.score(X_test,prediction)
-print(accuracy)
+
+# clf = svm.SVC(kernel='linear',C=1.0,decision_function_shape=None)
+# clf.fit(X_train, y_train)
+# prediction=clf.predict(X_test)
+# accuracy=clf.score(X_test,prediction)
+# print(accuracy)
