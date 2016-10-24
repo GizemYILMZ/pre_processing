@@ -1,7 +1,7 @@
 
 import os
-# import pandas as pd
-# import numpy as np
+import pandas as pd
+import numpy as np
 # import sklearn
 import nltk
 # from nltk.corpus import stopwords
@@ -28,6 +28,7 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn import metrics
 import pandas
+from sklearn.metrics import f1_score
 
 class MyEvaluation(object):
     def __init__(self):
@@ -49,20 +50,8 @@ class MyEvaluation(object):
     def _getAUC(self):
         return self._AUC
 
-    def _setAccuracy(self, value):
+    def _setAUC(self, value):
         self._AUC = value
-
-    def _getAccuracy(self):
-        return self._microF1
-
-    def _setAccuracy(self, value):
-        self._microF1 = value
-
-    def _getAccuracy(self):
-        return self._macroF1
-
-    def _setAccuracy(self, value):
-        self._macroF1 = value
 
     def _getPrecision(self):
         return self._Precision
@@ -76,14 +65,29 @@ class MyEvaluation(object):
     def _setRecall(self, value):
         self._Recall = value
 
+    def _getF1(self):
+        return self._F1
+
+    def _setF1(self, value):
+        self._F1 = value
+
+    def _getF1_macro(self):
+        return self._F1_macro
+
+    def _setF1_macro(self, value):
+        self._F1_macro = value
+
+    def _getF1_micro(self):
+        return self._F1_micro
+
+    def _setF1_micro(self, value):
+        self._F1_micro = value
+
     def _getConfusionMatrix(self):
         return self._Conf_Matrix
 
     def _setConfusionMatrix(self, value):
         self._Conf_Matrix = value
-
-
-
 
 # ------------Preprocessing Data-------------------
 
@@ -100,6 +104,7 @@ def tokenize(text):
     stemmer = stemmerTrFps6
     tokens = nltk.word_tokenize(text)
     stems = stem_tokens(tokens, stemmer)
+    # print(stems)
     return stems
 
 def preprocess(term):
@@ -126,43 +131,61 @@ def evaluate_testOnTrainingSet(dataset,classlabels,classifier):
 
 
 def evaluate_nFoldCV(dataset,classlabels,classifier,n):
-    X_train = dataset
-    y_train = classlabels
-    X_test = X_train
-    y_test = y_train
     # k_fold = KFold(len(y_test), n_folds=n, shuffle=True, random_state=0)
-    predictions=cross_validation.cross_val_predict(classifier,X_train,y_test,cv=n)
-    # scores = cross_val_score(classifier, X_test, y_test, cv=n, n_jobs=1)
-    accuracy= metrics.accuracy_score(y_test, predictions)
-    precision = precision_score(y_test, predictions, average=None)
-    recall = recall_score(y_test, predictions, average=None)
-    cm = confusion_matrix(y_test, predictions)
+    predictions=cross_validation.cross_val_predict(classifier,dataset,classlabels,cv=n)
+    # score=cross_val_score(classifier, dataset, classlabels,cv=n,scoring='accuracy')  avg is same as metrics.accuracy_score
+
+    accuracy = metrics.accuracy_score(classlabels, predictions)
+    precision = precision_score(classlabels, predictions, average=None)
+    recall = recall_score(classlabels, predictions, average=None)
+
+    F1=metrics.f1_score(classlabels, predictions, average=None)
+    F1_macro=metrics.f1_score(classlabels, predictions, average='macro')
+    F1_micro=metrics.f1_score(classlabels, predictions, average='micro')
+
+    cm = confusion_matrix(classlabels, predictions)
+
     myEval = MyEvaluation()
     myEval._setAccuracy(accuracy.mean())
     myEval._setPrecision(precision)
     myEval._setRecall(recall)
+    myEval._setF1(F1)
+    myEval._setF1_macro(F1_macro)
+    myEval._setF1_micro(F1_micro)
+    myEval._setConfusionMatrix(cm)
+
     return myEval
 
 
 
 def evaluate_trainTestSplit(dataset,classLabels,classifier,testPercantage):
     X_train, X_test, y_train, y_test = cross_validation.train_test_split(dataset, classLabels, test_size=testPercantage,random_state=0)
-    predictions = classifier.predict(X_test)  # Perform classification on an array of test vectors X.
-    # evalReport = classification_report(y_test, predictions, target_names=classifier.classes_)
-    precision=precision_score(y_test, predictions,average=None)
-    recall=recall_score(y_test, predictions,average=None)
-    # print(precision_recall_fscore_support(y_test, predictions, average='micro',labels =classLabels))
-    cm = confusion_matrix(y_test, predictions)
+
+    predictions = classifier.predict(X_test)
+
     accuracy = classifier.score(X_test, y_test)
+    precision = precision_score(y_test, predictions, average=None)
+    recall = recall_score(y_test, predictions, average=None)
+
+    F1=metrics.f1_score(y_test, predictions, average=None)
+    F1_macro=metrics.f1_score(y_test, predictions, average='macro')
+    F1_micro=metrics.f1_score(y_test, predictions, average='micro')
+
+    cm = confusion_matrix(y_test, predictions)
+
     myEval = MyEvaluation()
     myEval._setAccuracy(accuracy)
     myEval._setPrecision(precision)
     myEval._setRecall(recall)
+    myEval._setF1(F1)
+    myEval._setF1_macro(F1_macro)
+    myEval._setF1_micro(F1_micro)
     myEval._setConfusionMatrix(cm)
+
     return myEval
 
 
-path = 'data/1150haber/'
+path = 'data/news/'
 corpus = []
 
 classLabels = []
@@ -173,54 +196,73 @@ for subdir, dirs, files in os.walk(path):
         fileNames.append(file_path)
         classLabels.append(subdir[15:])
 
-
+print("i m here 1 ")
 tfidf = TfidfVectorizer(tokenizer=tokenize, preprocessor=preprocess, lowercase=True, stop_words='english')
-docTermMatrix = tfidf.fit_transform((open(f,encoding=None).read() for f in fileNames))
+docTermMatrix = tfidf.fit_transform((open(f,encoding='utf8').read() for f in fileNames))
 dataset=docTermMatrix
 
-#print(docTermMatrix[1,:].todense())
-#print(type(docTermMatrix))
+# print(docTermMatrix[1,:].todense())
+# print(type(docTermMatrix))
 #print(docTermMatrix.shape)
 #print(classLabels)
-
+print("i m here 2 ")
 classifier =MultinomialNB().fit(dataset, classLabels)
 
 # test on training set---------------------------------------------------------
-
+print("i m here 3 ")
 evaluate_testOnTrainingSet(dataset,classLabels,classifier)
 
 # train-test split 60%-40% with multinominal_nb---------------------------------
 
 percentage=0.4
-
-myEval_trainTestSplit_MB=evaluate_trainTestSplit(dataset,classLabels,classifier,percentage)
-print("\n split 60%-40% with Multinominal NB \n" )
-print("Accuracy :" , myEval_trainTestSplit_MB._getAccuracy())
-print("Precision:" , myEval_trainTestSplit_MB._getPrecision())
-print("Recall   :" , myEval_trainTestSplit_MB._getRecall())
-print("Confusion Matrix :\n " , myEval_trainTestSplit_MB._getConfusionMatrix())
+print("i m here 4 ")
+myEval_trainTestSplit_MNB=evaluate_trainTestSplit(dataset,classLabels,classifier,percentage)
+print("\n ---------------------split 60%-40% with Multinominal NB ------------------\n" )
+print("Accuracy :" , myEval_trainTestSplit_MNB._getAccuracy())
+print("Precision:" , myEval_trainTestSplit_MNB._getPrecision())
+print("Recall   :" , myEval_trainTestSplit_MNB._getRecall())
+print("F1       :" , myEval_trainTestSplit_MNB._getF1())
+print("F1 macro :" , myEval_trainTestSplit_MNB._getF1_macro())
+print("F1 micro :" , myEval_trainTestSplit_MNB._getF1_micro())
+print("Confusion Matrix :\n " , myEval_trainTestSplit_MNB._getConfusionMatrix())
 
 # nFold CV with multinominal_nb-------------------------------------------------
 
 n=10
 
-myEval_nFoldCV_MB=evaluate_nFoldCV(dataset,classLabels,classifier,n)
-print("\n 10 fold CV with Multinominal NB \n")
-print("Accuracy :", myEval_nFoldCV_MB._getAccuracy())
-print("Precision:", myEval_nFoldCV_MB._getPrecision())
-print("Recall   :", myEval_nFoldCV_MB._getRecall())
-
+myEval_nFoldCV_MNB=evaluate_nFoldCV(dataset,classLabels,classifier,n)
+print("\n -----------------" , n ,"fold CV with Multinominal NB----------------------- \n")
+print("Accuracy :", myEval_nFoldCV_MNB._getAccuracy())
+print("Precision:", myEval_nFoldCV_MNB._getPrecision())
+print("Recall   :", myEval_nFoldCV_MNB._getRecall())
+print("F1       :" , myEval_nFoldCV_MNB._getF1())
+print("F1 macro :" , myEval_nFoldCV_MNB._getF1_macro())
+print("F1 micro :" , myEval_nFoldCV_MNB._getF1_micro())
+print("Confusion Matrix :\n " , myEval_nFoldCV_MNB._getConfusionMatrix())
 
 
 # train-test split 60%-40% with SVM--------------------------------
 
 clf = svm.SVC(kernel='linear',C=1.0,decision_function_shape=None)
 classifier = clf.fit(dataset , classLabels)
+
 myEval_trainTestSplit_SVM=evaluate_trainTestSplit(dataset,classLabels,classifier,percentage)
-print("\n split 60%-40% with SVM \n" )
+print("\n -------------------split 60%-40% with SVM------------------------ \n" )
 print("Accuracy :", myEval_trainTestSplit_SVM._getAccuracy())
 print("Precision:", myEval_trainTestSplit_SVM._getPrecision())
 print("Recall   :", myEval_trainTestSplit_SVM._getRecall())
+print("F1       :" , myEval_trainTestSplit_SVM._getF1())
+print("F1 macro :" , myEval_trainTestSplit_SVM._getF1_macro())
+print("F1 micro :" , myEval_trainTestSplit_SVM._getF1_micro())
 print("Confusion Matrix :\n " , myEval_trainTestSplit_SVM._getConfusionMatrix())
 
 
+myEval_nFoldCV_SVM=evaluate_nFoldCV(dataset,classLabels,classifier,n)
+print("\n -----------------" , n ,"fold CV with SVM------------------------ \n")
+print("Accuracy :", myEval_nFoldCV_SVM._getAccuracy())
+print("Precision:", myEval_nFoldCV_SVM._getPrecision())
+print("Recall   :", myEval_nFoldCV_SVM._getRecall())
+print("F1       :" , myEval_nFoldCV_SVM._getF1())
+print("F1 macro :" , myEval_nFoldCV_SVM._getF1_macro())
+print("F1 micro :" , myEval_nFoldCV_SVM._getF1_micro())
+print("Confusion Matrix :\n " , myEval_nFoldCV_SVM._getConfusionMatrix())
